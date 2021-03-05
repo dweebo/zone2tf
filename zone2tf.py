@@ -11,7 +11,7 @@ resource "aws_route53_zone" "{root_zone_name}" {{
 def gen_record(**d):
     return '''
 resource "aws_route53_record" "{tf_name}" {{
-  zone_id = "${{aws_route53_zone.{root_zone_name}.id}}"
+  zone_id = aws_route53_zone.{root_zone_name}.id
   name    = "{record_name}"
   type    = "{type}"
   records = {records}
