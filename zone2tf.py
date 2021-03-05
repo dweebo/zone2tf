@@ -1,4 +1,5 @@
 import sys
+import json
 
 
 def gen_zone(**d):
@@ -9,11 +10,11 @@ resource "aws_route53_zone" "{root_zone_name}" {{
 
 def gen_record(**d):
     return '''
-resource "aws_route53_record" "{record_name}" {{
+resource "aws_route53_record" "{tf_name}" {{
   zone_id = "${{aws_route53_zone.{root_zone_name}.id}}"
-  name    = "{name}"
+  name    = "{record_name}"
   type    = "{type}"
-  records = ["{record}"]
+  records = {records}
   ttl     = {ttl}
 }}'''.format(**d)
 
@@ -22,8 +23,8 @@ if len(sys.argv) < 2:
     exit(1)
 
 with open(sys.argv[1], 'r') as zone_file:
+    records = []
     root_zone = ''
-    root_zone_name = 'beamtoothbrush_com'
 
     for line in zone_file:
 
@@ -34,7 +35,7 @@ with open(sys.argv[1], 'r') as zone_file:
         parts = line.split(' ')
 
         # try and find the root zone
-        if parts[2] == 'SOA':
+        if parts[3] == 'SOA':
             root_zone = parts[0]
             root_zone_name = root_zone.replace('.','')
 
@@ -62,10 +63,26 @@ with open(sys.argv[1], 'r') as zone_file:
             record = record[1:-1]
 
         record_ttl = int(parts[1])
+        found = False
+        for r in records:
+            if r["record_name"] == record_name and r["record_type"] == record_type:
+                found = True
+                r["records"].append(record)
+        if not found:
+            records.append({
+                "tf_name":'{0}-{1}'.format(parts[0].replace('.',''),parts[3].lower()),
+                "record_name":record_name,
+                "record_type":record_type,
+                "record_ttl":record_ttl,
+                "record_ttl":record_ttl,
+                "records":[ record ],
+                "root_zone_name":root_zone_name
+            })
 
-        print(gen_record(record_name='{0}-{1}'.format(parts[0].replace('.',''),parts[3].lower()),
-                         name=record_name,
-                         ttl=record_ttl,
-                         type=record_type,
-                         record=record,
-                         root_zone_name=root_zone_name))
+    for record in records:
+        print(gen_record(tf_name=record["tf_name"],
+                         record_name=record["record_name"],
+                         ttl=record["record_ttl"],
+                         type=record["record_type"],
+                         records=json.dumps(record["records"]),
+                         root_zone_name=record["root_zone_name"]))
